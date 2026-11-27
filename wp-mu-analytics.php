@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: nitida — Google Analytics (consent-gated)
- * Description: Customizer field for the GA4 measurement ID, handed to GDPR Cookie Compliance so Google Analytics only loads once the visitor opts in.
- * Version: 1.0.0
+ * Description: Customizer field for the GA4 measurement ID, handed to GDPR Cookie Compliance so Google Analytics only loads once the visitor opts in; plus the nitida standard lead events.
+ * Version: 1.1.0
  * Author: nitida
  * License: MIT
  *
@@ -127,6 +127,59 @@ function flush_consent_script_cache(): void
         delete_transient('gdpr_cookie_cache' . $suffix . MOOVE_GDPR_VERSION);
     }
 }
+
+/*
+ * Lead events (1.1.0) — the nitida tracking standard (google-analytics skill §2), same names on
+ * every site so monthly reports read alike:
+ *   generate_lead  {method: 'contact_form', form_plugin, form_id}  a form actually SENT
+ *   whatsapp_click                                                  wa.me / api.whatsapp.com / whatsapp:
+ *   contact_click  {method: 'phone' | 'email'}                      tel: / mailto:
+ *
+ * Why custom events: GA's automatic form_start/form_submit (enhanced measurement) fire on
+ * every <form>, including site search and catalogue filters (on real sites they outnumber
+ * actual enquiries many times over), and they miss AJAX success.
+ * So "a lead" is the form plugin's own success event, never a submit:
+ *   Kadence Blocks  kb-form-success / kb-advanced-form-success  CustomEvent on document.body
+ *   Ninja Forms     jQuery(document) 'nfFormSubmitResponse'      success = response has no errors
+ *   Contact Form 7  wpcf7mailsent                                bubbling CustomEvent
+ * (checked in the plugins' own JS, 2026-11-27).
+ *
+ * Consent: this script never loads GA. It only calls window.gtag when it exists, and on these
+ * sites gtag only exists after the visitor accepted analytics (GDPR Cookie Compliance injects
+ * it), so before consent the events are simply dropped. Filter `nitida_analytics_lead_events`
+ * (return false) turns it off for a site.
+ */
+add_action('wp_footer', function (): void {
+    if (! apply_filters('nitida_analytics_lead_events', true) || is_admin()) {
+        return;
+    }
+    ?>
+<script id="nitida-lead-events">
+(function () {
+  function send(name, params) { if (typeof window.gtag === 'function') window.gtag('event', name, params || {}); }
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a) return;
+    var h = (a.getAttribute('href') || '').trim().toLowerCase();
+    if (/^(https?:\/\/)?(wa\.me|api\.whatsapp\.com|web\.whatsapp\.com)\b|^whatsapp:/.test(h)) send('whatsapp_click');
+    else if (h.indexOf('tel:') === 0) send('contact_click', { method: 'phone' });
+    else if (h.indexOf('mailto:') === 0) send('contact_click', { method: 'email' });
+  }, true);
+  function lead(plugin, id) { send('generate_lead', { method: 'contact_form', form_plugin: plugin, form_id: String(id || '') }); }
+  ['kb-form-success', 'kb-advanced-form-success'].forEach(function (ev) {
+    document.body.addEventListener(ev, function (e) { lead('kadence', e.detail && (e.detail.uniqueId || e.detail)); });
+  });
+  document.addEventListener('wpcf7mailsent', function (e) { lead('cf7', e.detail && e.detail.contactFormId); });
+  if (window.jQuery) {
+    window.jQuery(document).on('nfFormSubmitResponse', function (_e, r) {
+      var errs = r && r.response && r.response.errors;
+      if (!errs || (Array.isArray(errs) ? errs.length === 0 : Object.keys(errs).length === 0)) lead('ninja_forms', r && r.id);
+    });
+  }
+})();
+</script>
+    <?php
+}, 100);
 
 if (defined('WP_CLI') && WP_CLI) {
     \WP_CLI::add_command('nitida analytics', new class {

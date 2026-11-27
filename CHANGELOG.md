@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0 — 2026-11-27
+
+Lead events, the nitida tracking standard: `generate_lead` on the form plugin's own
+success event (Kadence Blocks, Ninja Forms, Contact Form 7), `whatsapp_click`,
+`contact_click` (phone/email). GA's automatic form events count search and filter forms,
+so they are not leads. Events only fire when gtag exists, i.e. after consent. Filter
+`nitida_analytics_lead_events` turns it off.
+
 ## 1.0.0 — 2026-10-08
 
 First release. Ports cinca's `analytics.php` v2.0.0 (Customizer GA4 ID synced

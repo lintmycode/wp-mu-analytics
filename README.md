@@ -16,6 +16,20 @@ and borealis as of 2026-10-08) echoes gtag.js into `wp_head` on every page.
 That sets the `_ga` cookie before the visitor has agreed to anything, which
 is what the consent banner is there to prevent (RGPD/ePrivacy).
 
+## Lead events (1.1)
+
+Prints a small script in the footer that sends, when GA is loaded (after consent):
+
+| Event | When |
+|---|---|
+| `generate_lead` (`method: contact_form`, `form_plugin`, `form_id`) | a form is actually sent: Kadence Blocks `kb-form-success` / `kb-advanced-form-success`, Ninja Forms `nfFormSubmitResponse` without errors, Contact Form 7 `wpcf7mailsent` |
+| `whatsapp_click` | click on a `wa.me` / `api.whatsapp.com` / `whatsapp:` link |
+| `contact_click` (`method: phone` / `email`) | click on a `tel:` / `mailto:` link |
+
+Then mark `generate_lead`, `whatsapp_click`, `contact_click` (and `file_download` on
+catalogue sites) as key events in GA (Admin → Events). Turn off per site with
+`add_filter('nitida_analytics_lead_events', '__return_false');`.
+
 ## Requirements
 
 GDPR Cookie Compliance installed and configured once (its settings saved at
